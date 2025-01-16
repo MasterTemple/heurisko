@@ -9,4 +9,11 @@ My intention is to provide a solution to search through sermons and related lect
 I do recognize that this can have value beyond the particular scope for which it was made.
 Perhaps I will create something similar to index documents in the future.
 
+# Supported File Types
+
+- `.sbv`: [SubViewer](https://docs.fileformat.com/settings/sbv/)
+- `.srt`: [SubRip](https://docs.fileformat.com/video/srt/)
+- `.json`: [WhisperX](https://github.com/m-bain/whisperX) (after alignment)
+- `.json`: [YouTube Transcript](https://pypi.org/project/youtube-transcript-api/)
+
 # Setup

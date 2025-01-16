@@ -7,10 +7,7 @@ use crate::hsk_file::HskResult;
 
 #[cached(size = 1)]
 fn srt_regex() -> Regex {
-    Regex::new(
-        r"(\d+)\n(\d{2}):(\d{2}):(\d{2}),(\d{3}) --> (\d{2}):(\d{2}):(\d{2}),(\d{3})\n(.*)\n",
-    )
-    .unwrap()
+    Regex::new(r"(\d+)\n(\d+):(\d+):(\d+),(\d+) ?--> ?(\d+):(\d+):(\d+),(\d+)\n(.*)\n").unwrap()
 }
 
 #[derive(Debug)]

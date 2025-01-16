@@ -143,12 +143,7 @@ impl Searcher {
         results
     }
 
-    pub fn search2(
-        &self,
-        query: impl AsRef<str>,
-        context: usize,
-        page: usize,
-    ) -> OrganizedSearchResult {
+    pub fn search2(&self, query: impl AsRef<str>, context: usize, page: usize) -> Vec<QueryResult> {
         let words: Vec<String> = query
             .as_ref()
             .split_whitespace()
@@ -158,25 +153,15 @@ impl Searcher {
         let transcript_indices = self.word_indices_group_by_transcript(&words);
         let allowed_range = words.len() * 2;
 
-        let mut results: OrganizedSearchResult = Map::default();
+        let mut results: Map<usize, Map<usize, Vec<(TranscriptId, WordSegmentRange)>>> =
+            Map::default();
 
         for (transcript_id, list_of_word_indices) in transcript_indices {
             let word_segment_ranges = merge_special(list_of_word_indices, allowed_range);
-            let transcript_words = self
-                .transcript_words
-                .get(&transcript_id)
-                .expect("It exists");
             for sr in word_segment_ranges {
                 let unique_count = sr.set.unique_count();
                 let element_count = sr.elements.len();
-                let start = if context > sr.min {
-                    0
-                } else {
-                    sr.min - context
-                };
-                let end = std::cmp::min(sr.max + context, transcript_words.len() - 1);
-                let words = transcript_words[start..=end].to_vec();
-                let qr = QueryResult::new(transcript_id, words);
+                let qr = (transcript_id, sr);
                 if let Some(unique_group) = results.get_mut(&unique_count) {
                     if let Some(element_group) = unique_group.get_mut(&element_count) {
                         element_group.push(qr);
@@ -191,7 +176,33 @@ impl Searcher {
             }
         }
 
-        results
+        let window_size = 50;
+        let skip_count = page * window_size;
+        let take_count = skip_count + window_size;
+        let mut page_results = vec![];
+        for (transcript_id, sr) in results
+            .into_values()
+            .rev()
+            .flat_map(|m| m.into_values().rev())
+            .flatten()
+            .skip(skip_count)
+            .take(take_count)
+        {
+            let start = if context > sr.min {
+                0
+            } else {
+                sr.min - context
+            };
+            let transcript_words = self
+                .transcript_words
+                .get(&transcript_id)
+                .expect("It exists");
+            let end = std::cmp::min(sr.max + context, transcript_words.len() - 1);
+            let words = transcript_words[start..=end].to_vec();
+            page_results.push(QueryResult::new(transcript_id, words));
+        }
+
+        page_results
     }
 }
 

@@ -5,6 +5,7 @@ use std::io::{Read, Write};
 use std::path::Path;
 use zstd::stream::{read::Decoder, write::Encoder};
 
+use crate::input_files::srt::SrtFile;
 use crate::input_files::whisperx::WhisperXFile;
 use crate::input_files::youtube::YouTubeTranscript;
 use crate::searcher::{normalize_word, Map};
@@ -55,6 +56,7 @@ impl HskFile {
     pub fn from_whisper(path: &Path) -> HskResult<Self> {
         todo!()
     }
+
     pub fn from_youtube(path: &Path) -> HskResult<Self> {
         let contents = fs::read_to_string(path)?;
         let youtube_transcript: Vec<YouTubeTranscript> = serde_json::from_str(&contents)?;
@@ -80,6 +82,7 @@ impl HskFile {
         }
         Ok(Self::from_words(words))
     }
+
     pub fn from_whisperx(path: &Path) -> HskResult<Self> {
         let contents = fs::read_to_string(path)?;
         let whisperx_file: WhisperXFile = serde_json::from_str(&contents)?;
@@ -96,7 +99,23 @@ impl HskFile {
     }
 
     pub fn from_srt(path: &Path) -> HskResult<Self> {
-        todo!()
+        let file = SrtFile::from_file(path)?;
+        let words = file
+            .segments
+            .into_iter()
+            .flat_map(|seg| {
+                seg.text
+                    .split_whitespace()
+                    .map(|word| Word {
+                        word: word.to_string(),
+                        start: Some(seg.start.in_seconds()),
+                        end: Some(seg.end.in_seconds()),
+                    })
+                    // compiler gets mad if I don't collect :(
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        Ok(Self::from_words(words))
     }
 
     pub fn save(&self, path: &Path) -> HskResult<()> {

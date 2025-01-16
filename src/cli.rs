@@ -58,7 +58,7 @@ fn command_convert(source: String, destination: Option<String>, flatten: bool) -
         let mut dest = data_dir.join(source.file_name().unwrap());
         dest.set_extension(APP_EXT);
         println!("Converting: {source:?} -> {dest:?}\n");
-        _ = HskFile::convert(source, dest.as_path());
+        HskFile::convert(source, dest.as_path())?;
     }
     if source.is_dir() {
         println!("Directory:");
@@ -74,7 +74,7 @@ fn command_convert(source: String, destination: Option<String>, flatten: bool) -
                 }
                 dest.set_extension(APP_EXT);
                 println!("Converting: {path:?} -> {dest:?}\n");
-                _ = HskFile::convert(path, dest.as_path());
+                HskFile::convert(path, dest.as_path())?;
             }
         }
     }

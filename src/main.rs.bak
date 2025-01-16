@@ -1,0 +1,85 @@
+use config::{Config, File};
+use directories::ProjectDirs;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+/// - https://biblehub.com/greek/2147.htm - heuriskó
+/// - also where we get heuristic (i assume)
+pub const APP_NAME: &'static str = "heurisko";
+
+#[derive(Debug, Serialize, Deserialize)]
+struct AppConfig {
+    data_dir: Option<PathBuf>,
+    // Add other config options here
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self { data_dir: None }
+    }
+}
+
+fn get_project_dirs() -> Option<ProjectDirs> {
+    ProjectDirs::from("com", APP_NAME, APP_NAME)
+}
+
+fn get_config_path() -> Option<PathBuf> {
+    get_project_dirs().map(|proj_dirs| proj_dirs.config_dir().join("config.toml"))
+}
+
+fn get_data_dir() -> Option<PathBuf> {
+    get_project_dirs().map(|proj_dirs| proj_dirs.data_dir().to_path_buf())
+}
+
+fn load_config() -> Result<AppConfig, Box<dyn std::error::Error>> {
+    let config_path =
+        get_config_path().ok_or_else(|| String::from("Could not determine config directory"))?;
+
+    // Create parent directories if they don't exist
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let config = if config_path.exists() {
+        Config::builder()
+            .add_source(File::from(config_path))
+            .build()?
+            .try_deserialize()?
+    } else {
+        // Create default config if it doesn't exist
+        let default_config = AppConfig::default();
+        let toml = toml::to_string_pretty(&default_config)?;
+        std::fs::write(&config_path, toml)?;
+        default_config
+    };
+
+    Ok(config)
+}
+
+fn get_effective_data_dir(config: &AppConfig) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    // Use config data_dir if specified, otherwise use default
+    let data_dir = match &config.data_dir {
+        Some(dir) => dir.clone(),
+        None => get_data_dir().ok_or_else(|| String::from("Could not determine data directory"))?,
+    };
+
+    // Create the directory if it doesn't exist
+    std::fs::create_dir_all(&data_dir)?;
+    Ok(data_dir)
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Load or create config
+    let config = load_config()?;
+    println!("Config loaded: {:?}", config);
+
+    // Get and create data directory
+    let data_dir = get_effective_data_dir(&config)?;
+    println!("Data directory: {:?}", data_dir);
+
+    // Example: Write a file to the data directory
+    let file_path = data_dir.join("example.txt");
+    std::fs::write(file_path, "Hello, World!")?;
+
+    Ok(())
+}

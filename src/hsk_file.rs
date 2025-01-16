@@ -5,6 +5,7 @@ use std::io::{Read, Write};
 use std::path::Path;
 use zstd::stream::{read::Decoder, write::Encoder};
 
+use crate::input_files::sbv::SbvFile;
 use crate::input_files::srt::SrtFile;
 use crate::input_files::whisperx::WhisperXFile;
 use crate::input_files::youtube::YouTubeTranscript;
@@ -42,7 +43,14 @@ impl HskFile {
                 HskFile::from_whisper(&path)
             }
         } else {
-            HskFile::from_srt(&path)
+            if let Ok(file) = HskFile::from_srt(&path) {
+                Ok(file)
+            } else {
+                HskFile::from_sbv(&path)
+            }
+            // if let Ok(file) = HskFile::from_sbv(&path) {
+            //     Ok(file)
+            // }
         }
     }
 
@@ -100,6 +108,26 @@ impl HskFile {
 
     pub fn from_srt(path: &Path) -> HskResult<Self> {
         let file = SrtFile::from_file(path)?;
+        let words = file
+            .segments
+            .into_iter()
+            .flat_map(|seg| {
+                seg.text
+                    .split_whitespace()
+                    .map(|word| Word {
+                        word: word.to_string(),
+                        start: Some(seg.start.in_seconds()),
+                        end: Some(seg.end.in_seconds()),
+                    })
+                    // compiler gets mad if I don't collect :(
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        Ok(Self::from_words(words))
+    }
+
+    pub fn from_sbv(path: &Path) -> HskResult<Self> {
+        let file = SbvFile::from_file(path)?;
         let words = file
             .segments
             .into_iter()

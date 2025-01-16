@@ -6,6 +6,7 @@ use std::path::Path;
 use zstd::stream::{read::Decoder, write::Encoder};
 
 use crate::input_files::whisperx::WhisperXFile;
+use crate::input_files::youtube::YouTubeTranscript;
 use crate::searcher::{normalize_word, Map};
 
 pub type HskResult<T> = Result<T, Box<dyn Error>>;
@@ -34,6 +35,8 @@ impl HskFile {
         if path.extension().is_some_and(|ext| ext == "json") {
             if let Ok(file) = HskFile::from_whisperx(&path) {
                 Ok(file)
+            } else if let Ok(file) = HskFile::from_youtube(&path) {
+                Ok(file)
             } else {
                 HskFile::from_whisper(&path)
             }
@@ -52,7 +55,31 @@ impl HskFile {
     pub fn from_whisper(path: &Path) -> HskResult<Self> {
         todo!()
     }
-
+    pub fn from_youtube(path: &Path) -> HskResult<Self> {
+        let contents = fs::read_to_string(path)?;
+        let youtube_transcript: Vec<YouTubeTranscript> = serde_json::from_str(&contents)?;
+        let mut words = youtube_transcript
+            // .as_slice()
+            .windows(2)
+            .flat_map(|el| {
+                let this = &el[0];
+                let next = &el[1];
+                this.text.split_whitespace().map(|word| Word {
+                    word: word.to_string(),
+                    start: Some(this.start),
+                    end: Some(next.start),
+                })
+            })
+            .collect::<Vec<_>>();
+        if let Some(last) = youtube_transcript.last() {
+            words.extend(last.text.split_whitespace().map(|word| Word {
+                word: word.to_string(),
+                start: Some(last.start),
+                end: None,
+            }));
+        }
+        Ok(Self::from_words(words))
+    }
     pub fn from_whisperx(path: &Path) -> HskResult<Self> {
         let contents = fs::read_to_string(path)?;
         let whisperx_file: WhisperXFile = serde_json::from_str(&contents)?;

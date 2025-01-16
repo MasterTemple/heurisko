@@ -13,7 +13,8 @@ Perhaps I will create something similar to index documents in the future.
 
 - `.sbv`: [SubViewer](https://docs.fileformat.com/settings/sbv/)
 - `.srt`: [SubRip](https://docs.fileformat.com/video/srt/)
-- `.json`: [WhisperX](https://github.com/m-bain/whisperX) (after alignment)
+- `.json`: [WhisperX](https://github.com/m-bain/whisperX) (without alignment)
+- `.json`: [WhisperX](https://github.com/m-bain/whisperX) (with alignment)
 - `.json`: [YouTube Transcript](https://pypi.org/project/youtube-transcript-api/)
 
 # Setup

@@ -7,6 +7,7 @@ use zstd::stream::{read::Decoder, write::Encoder};
 
 use crate::input_files::sbv::SbvFile;
 use crate::input_files::srt::SrtFile;
+use crate::input_files::whisper::UnalignedWhisperXFile;
 use crate::input_files::whisperx::WhisperXFile;
 use crate::input_files::youtube::YouTubeTranscript;
 use crate::searcher::{normalize_word, Map};
@@ -62,7 +63,24 @@ impl HskFile {
     }
 
     pub fn from_whisper(path: &Path) -> HskResult<Self> {
-        todo!()
+        let contents = fs::read_to_string(path)?;
+        let whisper_file: UnalignedWhisperXFile = serde_json::from_str(&contents)?;
+        let words = whisper_file
+            .segments
+            .into_iter()
+            .flat_map(|seg| {
+                seg.text
+                    .split_whitespace()
+                    .map(|word| Word {
+                        word: word.to_string(),
+                        start: Some(seg.start),
+                        end: Some(seg.end),
+                    })
+                    // compiler gets mad if I don't collect :(
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        Ok(Self::from_words(words))
     }
 
     pub fn from_youtube(path: &Path) -> HskResult<Self> {

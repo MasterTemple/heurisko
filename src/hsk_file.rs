@@ -9,7 +9,8 @@ use crate::input_files::sbv::SbvFile;
 use crate::input_files::srt::SrtFile;
 use crate::input_files::whisper::UnalignedWhisperXFile;
 use crate::input_files::whisperx::WhisperXFile;
-use crate::input_files::youtube::YouTubeTranscript;
+use crate::input_files::youtube::YouTubeTranscriptFile;
+use crate::input_files::TranscriptFile;
 use crate::searcher::{normalize_word, Map};
 
 pub type HskResult<T> = Result<T, Box<dyn Error>>;
@@ -21,9 +22,11 @@ pub struct Word {
     pub end: Option<f64>,
 }
 
+pub type Words = Vec<Word>;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HskFile {
-    pub words: Vec<Word>,
+    pub words: Words,
     pub word_index_map: WordIndexMap,
 }
 
@@ -33,26 +36,16 @@ impl HskFile {
         let hsk = HskFile::infer(&source)?;
         hsk.save(dest)
     }
-
     pub fn infer(path: &Path) -> HskResult<Self> {
-        if path.extension().is_some_and(|ext| ext == "json") {
-            if let Ok(file) = HskFile::from_whisperx(&path) {
-                Ok(file)
-            } else if let Ok(file) = HskFile::from_youtube(&path) {
-                Ok(file)
-            } else {
-                HskFile::from_whisper(&path)
-            }
-        } else {
-            if let Ok(file) = HskFile::from_srt(&path) {
-                Ok(file)
-            } else {
-                HskFile::from_sbv(&path)
-            }
-            // if let Ok(file) = HskFile::from_sbv(&path) {
-            //     Ok(file)
-            // }
-        }
+        let funcs = vec![
+            WhisperXFile::into_hsk,
+            UnalignedWhisperXFile::into_hsk,
+            YouTubeTranscriptFile::into_hsk,
+            SrtFile::into_hsk,
+            SbvFile::into_hsk,
+        ];
+        let found = funcs.iter().find_map(|func| func(path).ok());
+        found.ok_or(format!("Could not parse {:?} into any type", path).into())
     }
 
     pub fn from_words(words: Vec<Word>) -> Self {
@@ -60,108 +53,6 @@ impl HskFile {
             word_index_map: index_words(&words),
             words,
         }
-    }
-
-    pub fn from_whisper(path: &Path) -> HskResult<Self> {
-        let contents = fs::read_to_string(path)?;
-        let whisper_file: UnalignedWhisperXFile = serde_json::from_str(&contents)?;
-        let words = whisper_file
-            .segments
-            .into_iter()
-            .flat_map(|seg| {
-                seg.text
-                    .split_whitespace()
-                    .map(|word| Word {
-                        word: word.to_string(),
-                        start: Some(seg.start),
-                        end: Some(seg.end),
-                    })
-                    // compiler gets mad if I don't collect :(
-                    .collect::<Vec<_>>()
-            })
-            .collect();
-        Ok(Self::from_words(words))
-    }
-
-    pub fn from_youtube(path: &Path) -> HskResult<Self> {
-        let contents = fs::read_to_string(path)?;
-        let youtube_transcript: Vec<YouTubeTranscript> = serde_json::from_str(&contents)?;
-        let mut words = youtube_transcript
-            // .as_slice()
-            .windows(2)
-            .flat_map(|el| {
-                let this = &el[0];
-                let next = &el[1];
-                this.text.split_whitespace().map(|word| Word {
-                    word: word.to_string(),
-                    start: Some(this.start),
-                    end: Some(next.start),
-                })
-            })
-            .collect::<Vec<_>>();
-        if let Some(last) = youtube_transcript.last() {
-            words.extend(last.text.split_whitespace().map(|word| Word {
-                word: word.to_string(),
-                start: Some(last.start),
-                end: None,
-            }));
-        }
-        Ok(Self::from_words(words))
-    }
-
-    pub fn from_whisperx(path: &Path) -> HskResult<Self> {
-        let contents = fs::read_to_string(path)?;
-        let whisperx_file: WhisperXFile = serde_json::from_str(&contents)?;
-        let words = whisperx_file
-            .word_segments
-            .into_iter()
-            .map(|word| Word {
-                word: word.word,
-                start: word.start,
-                end: word.end,
-            })
-            .collect();
-        Ok(Self::from_words(words))
-    }
-
-    pub fn from_srt(path: &Path) -> HskResult<Self> {
-        let file = SrtFile::from_file(path)?;
-        let words = file
-            .segments
-            .into_iter()
-            .flat_map(|seg| {
-                seg.text
-                    .split_whitespace()
-                    .map(|word| Word {
-                        word: word.to_string(),
-                        start: Some(seg.start.in_seconds()),
-                        end: Some(seg.end.in_seconds()),
-                    })
-                    // compiler gets mad if I don't collect :(
-                    .collect::<Vec<_>>()
-            })
-            .collect();
-        Ok(Self::from_words(words))
-    }
-
-    pub fn from_sbv(path: &Path) -> HskResult<Self> {
-        let file = SbvFile::from_file(path)?;
-        let words = file
-            .segments
-            .into_iter()
-            .flat_map(|seg| {
-                seg.text
-                    .split_whitespace()
-                    .map(|word| Word {
-                        word: word.to_string(),
-                        start: Some(seg.start.in_seconds()),
-                        end: Some(seg.end.in_seconds()),
-                    })
-                    // compiler gets mad if I don't collect :(
-                    .collect::<Vec<_>>()
-            })
-            .collect();
-        Ok(Self::from_words(words))
     }
 
     pub fn save(&self, path: &Path) -> HskResult<()> {

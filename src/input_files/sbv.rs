@@ -3,7 +3,9 @@ use std::{fmt::Display, path::Path};
 use cached::proc_macro::cached;
 use regex::Regex;
 
-use crate::hsk_file::HskResult;
+use crate::hsk_file::{HskResult, Word};
+
+use super::TranscriptFile;
 
 #[cached(size = 1)]
 fn sbv_regex() -> Regex {
@@ -47,8 +49,8 @@ pub struct SbvFile {
     pub segments: Vec<SbvSegment>,
 }
 
-impl SbvFile {
-    pub fn from_file(path: &Path) -> HskResult<Self> {
+impl TranscriptFile for SbvFile {
+    fn read(path: &Path) -> HskResult<Self> {
         let contents = std::fs::read_to_string(path)?;
         let mut segments = vec![];
         for cap in sbv_regex().captures_iter(&contents) {
@@ -69,5 +71,23 @@ impl SbvFile {
             });
         }
         Ok(Self { segments })
+    }
+
+    fn into_words(self) -> HskResult<crate::hsk_file::Words> {
+        Ok(self
+            .segments
+            .into_iter()
+            .flat_map(|seg| {
+                seg.text
+                    .split_whitespace()
+                    .map(|word| Word {
+                        word: word.to_string(),
+                        start: Some(seg.start.in_seconds()),
+                        end: Some(seg.end.in_seconds()),
+                    })
+                    // compiler gets mad if I don't collect :(
+                    .collect::<Vec<_>>()
+            })
+            .collect())
     }
 }

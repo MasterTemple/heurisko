@@ -4,7 +4,6 @@ use rocket::response::status::BadRequest;
 use rocket::tokio::runtime::Runtime;
 use rocket::{get, routes};
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 use walkdir::WalkDir;
@@ -16,7 +15,7 @@ use crate::utils::{prompt, Timer};
 use crate::CONFIG;
 
 #[derive(Debug, Parser)]
-#[command(author = "Your Name", version = "1.0", about = "A versatile CLI tool")]
+#[command(author = "Blake Scampone", version = "1.0", about = "heuriskó")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -100,45 +99,22 @@ fn command_cli() {
             break;
         }
         timer.reset();
-        let results = searcher.search(input, 5);
+        let results = searcher.search(input, CONFIG.context_size(), 0, true);
         timer.print(format!("Query Complete").as_str());
-        let Some(unique_group_key) = results.keys().max() else {
-            continue;
-        };
-        let unique_group = results.get(&unique_group_key).unwrap();
-        let Some(element_group_key) = unique_group.keys().max() else {
-            continue;
-        };
-        let element_group = unique_group.get(element_group_key).unwrap();
-        for result in element_group {
-            let text = result
-                .words
-                .iter()
-                .map(|w| w.word.as_str())
-                .collect::<Vec<_>>()
-                .join(" ");
-
+        for result in results {
             let start = result.words.iter().find_map(|w| w.start).unwrap_or(0.0);
             let end = result
                 .words
                 .iter()
                 .find_map(|w| w.end.map(|e| e.to_string()))
                 .unwrap_or_default();
-
-            println!(
-                "[{:?}: {}..{}] {text}",
-                &result.transcript_id,
-                // searcher
-                //     .transcript_paths
-                //     .get(&result.transcript_id)
-                //     .unwrap()
-                //     .file_stem()
-                //     .unwrap()
-                //     .to_str()
-                //     .unwrap(),
-                start,
-                end
-            );
+            let text = result
+                .words
+                .iter()
+                .map(|w| w.word.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            println!("[{}: {}..{}] {}", &result.transcript, start, end, text);
         }
     }
 }
@@ -160,6 +136,18 @@ pub fn parse_cli() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Host => {
             // Create a new tokio runtime
             let rt = Runtime::new()?;
+            // force it to load when starting
+            {
+                let mut timer = Timer::new();
+                let searcher = SEARCHER.as_ref();
+                timer.print(
+                    format!(
+                        "Searcher loaded {} transcripts",
+                        searcher.transcript_words.len(),
+                    )
+                    .as_str(),
+                );
+            }
 
             // Launch rocket in the runtime
             _ = rt.block_on(async {
@@ -198,27 +186,19 @@ async fn ids() -> String {
     .expect("This can serialize")
 }
 
-#[get("/search?<query>&<context>&<page>")]
+#[get("/search?<query>&<context>&<page>&<remove_stop_words>")]
 async fn search(
     query: String,
     context: Option<usize>,
     page: Option<usize>,
+    remove_stop_words: bool,
 ) -> Result<String, BadRequest<String>> {
-    let results = SEARCHER.search(query, context.unwrap_or(5));
     let page = page.unwrap_or(0);
-    let window_size = 50;
-    let skip_count = page * window_size;
-    let take_count = skip_count + window_size;
-    let mut page_results = vec![];
-    for value in results
-        .into_values()
-        .rev()
-        .flat_map(|m| m.into_values().rev())
-        .flatten()
-        .skip(skip_count)
-        .take(take_count)
-    {
-        page_results.push(value);
-    }
+    let page_results = SEARCHER.search(
+        query,
+        context.unwrap_or(CONFIG.context_size()),
+        page,
+        remove_stop_words,
+    );
     serde_json::to_string(&page_results).map_err(|err| BadRequest(err.to_string()))
 }

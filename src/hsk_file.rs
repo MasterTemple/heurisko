@@ -106,18 +106,3 @@ fn index_words(words: &Vec<Word>) -> WordIndexMap {
     }
     word_index_map
 }
-
-// saving in case i want to move the index map out of the HskFile again
-// pub struct IndexedHskFile {
-//     pub words: Vec<Word>,
-//     pub word_index_map: WordIndexMap,
-// }
-// impl From<HskFile> for IndexedHskFile {
-//     fn from(value: HskFile) -> Self {
-//         let HskFile { words } = value;
-//         Self {
-//             word_index_map: index_words(&words),
-//             words,
-//         }
-//     }
-// }

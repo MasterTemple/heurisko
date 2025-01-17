@@ -22,3 +22,24 @@ pub fn prompt(input_prompt: &str) -> String {
     _ = std::io::stdin().read_line(&mut input_line);
     input_line.trim().to_string()
 }
+
+/**
+```no_run
+// so I can rewrite
+let mut config_path = get_config_path()?;
+config_path.push("config.toml");
+Some(config_path)
+// as either this
+Some(get_config_path()?.mutated(|config| config.push("config.toml")))
+// or this
+get_config_path().map(|config| config.mutated(|config| config.push("config.toml")))
+```
+*/
+pub trait Mutated: Sized {
+    fn mutated(mut self, func: impl Fn(&mut Self)) -> Self {
+        func(&mut self);
+        self
+    }
+}
+
+impl<T> Mutated for T {}

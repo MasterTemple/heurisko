@@ -70,7 +70,11 @@ impl TranscriptFile for SbvFile {
                 text: cap.get(9).unwrap().as_str().to_string(),
             });
         }
-        Ok(Self { segments })
+        if segments.len() != 0 {
+            Ok(Self { segments })
+        } else {
+            Err(String::from("`.sbv` file must contain at least 1 segment").into())
+        }
     }
 
     fn into_words(self) -> HskResult<crate::hsk_file::Words> {

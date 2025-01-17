@@ -4,6 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use rocket::form::validate::{Contains, Len};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
@@ -30,17 +31,14 @@ pub type WordToWordIndices = Map<String, WordIndices>;
 
 pub type WordToTranscriptAndWordIndicesMap = Map<String, Vec<TranscriptWordIndices>>;
 pub type OrganizedSearchResult = Map<usize, Map<usize, Vec<QueryResult>>>;
-// pub type OrganizedSearchResult = Map<usize, Map<usize, Vec<SearchResult>>>;
 
 pub struct Searcher {
-    // pub transcript_paths: Map<TranscriptId, PathBuf>,
-    // pub transcript_paths: Vec<PathBuf>,
-    // pub transcript_paths: Vec<Cow<'static, str>>,
     pub transcript_paths: Vec<String>,
     // transcript id -> Word
     pub transcript_words: Map<TranscriptId, Vec<Word>>,
     // word to transcript id
     pub map: WordToTranscriptAndWordIndicesMap,
+    pub stop_words: Vec<String>,
 }
 
 impl Searcher {
@@ -69,10 +67,15 @@ impl Searcher {
                 }
             }
         }
+        let stop_words = match CONFIG.stop_words() {
+            Some(stop_words) => stop_words,
+            None => vec![],
+        };
         Self {
             transcript_paths,
             transcript_words,
             map,
+            stop_words,
         }
     }
 
@@ -97,61 +100,35 @@ impl Searcher {
         transcript_to_indices
     }
 
-    pub fn search(&self, query: impl AsRef<str>, context: usize) -> OrganizedSearchResult {
-        let words: Vec<String> = query
+    pub fn search(
+        &self,
+        query: impl AsRef<str>,
+        context: usize,
+        page: usize,
+        remove_stop_words: bool,
+    ) -> Vec<QueryResult> {
+        // perhaps split at more than white space, for example `:` in 1 John 3:10
+        let words = query
             .as_ref()
             .split_whitespace()
             .map(|word| normalize_word(word))
-            .filter(|word| word.len() > 0)
-            .collect();
+            .filter(|word| word.len() > 0);
+
+        let words: Vec<String> = if remove_stop_words {
+            words
+                .filter(|word| !self.stop_words.contains(word))
+                .collect()
+        } else {
+            words.collect()
+        };
+
+        // let words: Vec<String> = words.collect();
         let transcript_indices = self.word_indices_group_by_transcript(&words);
-        let allowed_range = words.len() * 2;
-
-        let mut results: OrganizedSearchResult = Map::default();
-
-        for (transcript_id, list_of_word_indices) in transcript_indices {
-            let word_segment_ranges = merge_special(list_of_word_indices, allowed_range);
-            let transcript_words = self
-                .transcript_words
-                .get(&transcript_id)
-                .expect("It exists");
-            for sr in word_segment_ranges {
-                let unique_count = sr.set.unique_count();
-                let element_count = sr.elements.len();
-                let start = if context > sr.min {
-                    0
-                } else {
-                    sr.min - context
-                };
-                let end = std::cmp::min(sr.max + context, transcript_words.len() - 1);
-                let words = transcript_words[start..=end].to_vec();
-                let qr = QueryResult::new(transcript_id, words);
-                if let Some(unique_group) = results.get_mut(&unique_count) {
-                    if let Some(element_group) = unique_group.get_mut(&element_count) {
-                        element_group.push(qr);
-                    } else {
-                        unique_group.insert(element_count, vec![qr]);
-                    }
-                } else {
-                    let mut element_group = Map::default();
-                    element_group.insert(element_count, vec![qr]);
-                    _ = results.insert(unique_count, element_group);
-                }
-            }
-        }
-
-        results
-    }
-
-    pub fn search2(&self, query: impl AsRef<str>, context: usize, page: usize) -> Vec<QueryResult> {
-        let words: Vec<String> = query
-            .as_ref()
-            .split_whitespace()
-            .map(|word| normalize_word(word))
-            .filter(|word| word.len() > 0)
-            .collect();
-        let transcript_indices = self.word_indices_group_by_transcript(&words);
-        let allowed_range = words.len() * 2;
+        let allowed_range = if remove_stop_words {
+            words.len() * CONFIG.word_distance_with_stop_words_removed
+        } else {
+            words.len() * CONFIG.word_distance
+        };
 
         let mut results: Map<usize, Map<usize, Vec<(TranscriptId, WordSegmentRange)>>> =
             Map::default();
@@ -176,15 +153,18 @@ impl Searcher {
             }
         }
 
-        let window_size = 50;
-        let skip_count = page * window_size;
-        let take_count = skip_count + window_size;
+        let page_size = CONFIG.page_size();
+        let skip_count = page * page_size;
+        let take_count = skip_count + page_size;
         let mut page_results = vec![];
         for (transcript_id, sr) in results
             .into_values()
+            // Higher key means higher count of unique elements
             .rev()
+            // Higher key means higher count of total elements
             .flat_map(|m| m.into_values().rev())
             .flatten()
+            // Take only for current page
             .skip(skip_count)
             .take(take_count)
         {
@@ -198,28 +178,95 @@ impl Searcher {
                 .get(&transcript_id)
                 .expect("It exists");
             let end = std::cmp::min(sr.max + context, transcript_words.len() - 1);
-            let words = transcript_words[start..=end].to_vec();
-            page_results.push(QueryResult::new(transcript_id, words));
+            // prev
+            // let words = transcript_words[start..=end].to_vec();
+            // let transcript = self.transcript_paths.get(transcript_id).expect("It exists");
+            // page_results.push(QueryResult::new(transcript.clone(), words));
+            // new
+            let words = transcript_words[start..=end]
+                .as_ref()
+                .iter()
+                .enumerate()
+                .map(|(idx, word)| {
+                    let this_word_id = idx + start;
+                    // let matched = sr.min <= this_word_id && this_word_id <= sr.max;
+                    let matched = sr.elements.binary_search(&this_word_id).is_ok();
+                    QueryWord {
+                        word: word.word.clone(),
+                        start: word.start,
+                        end: word.end,
+                        matched,
+                    }
+                })
+                .collect();
+            let transcript = self.transcript_paths.get(transcript_id).expect("It exists");
+            page_results.push(QueryResult::new(transcript.clone(), words));
         }
 
         page_results
     }
+
+    pub fn diagnose_query(&self, query: impl AsRef<str>) {
+        let words = query
+            .as_ref()
+            .split_whitespace()
+            .map(|word| normalize_word(word))
+            .filter(|word| word.len() > 0);
+    }
+}
+
+pub struct QueryParams {
+    pub page: usize,
+    pub context: usize,
+    pub remove_stop_words: bool,
+    pub word_distance: usize,
+    pub keep_words: Vec<String>,
+    /// This means that I should merge these array indices together and treat them as the same word
+    /// in the search
+    pub similar_words: BTreeMap<String, Vec<String>>,
+}
+
+pub struct QueryDiagnostics {
+    pub words: Vec<String>,
+    pub ignored_words: Vec<String>,
+    pub keep_words: Vec<String>,
+    pub similar_words: BTreeMap<String, Vec<String>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct QueryWord {
+    pub word: String,
+    pub start: Option<f64>,
+    pub end: Option<f64>,
+    pub matched: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct QueryResult {
-    pub transcript_id: usize,
-    pub words: Vec<Word>,
+    pub transcript: String,
+    pub words: Vec<QueryWord>,
 }
 
 impl QueryResult {
-    pub fn new(transcript_id: usize, words: Vec<Word>) -> Self {
-        Self {
-            transcript_id,
-            words,
-        }
+    pub fn new(transcript: String, words: Vec<QueryWord>) -> Self {
+        Self { transcript, words }
     }
 }
+
+// #[derive(Clone, Debug, Serialize, Deserialize)]
+// pub struct QueryResult {
+//     pub transcript_id: usize,
+//     pub words: Vec<Word>,
+// }
+//
+// impl QueryResult {
+//     pub fn new(transcript_id: usize, words: Vec<Word>) -> Self {
+//         Self {
+//             transcript_id,
+//             words,
+//         }
+//     }
+// }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearchResult {

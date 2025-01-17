@@ -2,6 +2,7 @@ use std::{fmt::Display, path::Path};
 
 use cached::proc_macro::cached;
 use regex::Regex;
+use rocket::form::validate::Len;
 
 use crate::hsk_file::{HskResult, Word};
 
@@ -72,7 +73,11 @@ impl TranscriptFile for SrtFile {
                 text: cap.get(10).unwrap().as_str().to_string(),
             });
         }
-        Ok(Self { segments })
+        if segments.len() != 0 {
+            Ok(Self { segments })
+        } else {
+            Err(String::from("`.srt` file must contain at least 1 segment").into())
+        }
     }
 
     fn into_words(self) -> HskResult<crate::hsk_file::Words> {

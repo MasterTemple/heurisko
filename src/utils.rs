@@ -43,3 +43,48 @@ pub trait Mutated: Sized {
 }
 
 impl<T> Mutated for T {}
+
+/**
+- Basically if I have a list and I search for `"run"`, I would get results like `["run", "runner", "running"]`
+- This uses binary search and then moves adjacent while it still matches the condition
+*/
+pub fn find_all_extended_words<'a>(
+    strings: &'a Vec<String>,
+    word: &str,
+) -> Option<Vec<&'a String>> {
+    let index = strings
+        .binary_search_by(|s| {
+            if s.starts_with(word) {
+                std::cmp::Ordering::Equal
+            } else if s.as_str() < word {
+                std::cmp::Ordering::Less
+            } else {
+                std::cmp::Ordering::Greater
+            }
+        })
+        .ok()?;
+    let mut results = vec![strings.get(index).expect("Already verified")];
+
+    let mut left_index = index - 1;
+    while let Some(left) = strings.get(left_index) {
+        if !left.as_str().starts_with(word) {
+            break;
+        }
+        results.push(left);
+        if left_index == 0 {
+            break;
+        }
+        left_index -= 1;
+    }
+
+    let mut right_index = index + 1;
+    while let Some(right) = strings.get(right_index) {
+        if !right.as_str().starts_with(word) {
+            break;
+        }
+        results.push(right);
+        right_index += 1;
+    }
+
+    Some(results)
+}

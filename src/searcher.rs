@@ -199,8 +199,15 @@ impl Searcher {
                     }
                 })
                 .collect();
+            let unique_count = sr.set.unique_count();
+            let element_count = sr.elements.len();
             let transcript = self.transcript_paths.get(transcript_id).expect("It exists");
-            page_results.push(QueryResult::new(transcript.clone(), words));
+            page_results.push(QueryResult::new(
+                transcript.clone(),
+                words,
+                unique_count,
+                element_count,
+            ));
         }
 
         page_results
@@ -245,11 +252,23 @@ pub struct QueryWord {
 pub struct QueryResult {
     pub transcript: String,
     pub words: Vec<QueryWord>,
+    pub unique_count: usize,
+    pub element_count: usize,
 }
 
 impl QueryResult {
-    pub fn new(transcript: String, words: Vec<QueryWord>) -> Self {
-        Self { transcript, words }
+    pub fn new(
+        transcript: String,
+        words: Vec<QueryWord>,
+        unique_count: usize,
+        element_count: usize,
+    ) -> Self {
+        Self {
+            transcript,
+            words,
+            unique_count,
+            element_count,
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::error::Error;
-use std::fs::{self, File};
+use std::fs::{File};
 use std::io::{Read, Write};
 use std::path::Path;
 use zstd::stream::{read::Decoder, write::Encoder};

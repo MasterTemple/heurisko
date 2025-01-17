@@ -1,16 +1,16 @@
-use std::{
-    borrow::Cow,
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
+use std::collections::BTreeMap;
 
-use rocket::form::validate::{Contains, Len};
+use rocket::{
+    form::validate::{Contains, Len},
+    futures::{stream::iter, StreamExt},
+};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
 use crate::{
     hsk_file::{HskFile, Word},
     merge::{merge_special, WordSegmentRange},
+    utils::find_all_extended_words,
     CONFIG,
 };
 
@@ -38,6 +38,7 @@ pub struct Searcher {
     pub transcript_words: Map<TranscriptId, Vec<Word>>,
     // word to transcript id
     pub map: WordToTranscriptAndWordIndicesMap,
+    pub all_words: Vec<String>,
     pub stop_words: Vec<String>,
 }
 
@@ -71,10 +72,12 @@ impl Searcher {
             Some(stop_words) => stop_words,
             None => vec![],
         };
+        let all_words: Vec<String> = map.keys().map(|key| key.to_string()).collect();
         Self {
             transcript_paths,
             transcript_words,
             map,
+            all_words,
             stop_words,
         }
     }
@@ -213,12 +216,35 @@ impl Searcher {
         page_results
     }
 
-    pub fn diagnose_query(&self, query: impl AsRef<str>) {
-        let words = query
+    pub fn diagnose_query<'a>(&'a self, query: impl AsRef<str>) -> QueryDiagnostics {
+        let words: Vec<String> = query
             .as_ref()
             .split_whitespace()
             .map(|word| normalize_word(word))
-            .filter(|word| word.len() > 0);
+            .filter(|word| word.len() > 0)
+            .collect();
+
+        let (ignored_words, kept_words): (Vec<String>, Vec<String>) = words
+            .clone()
+            .into_iter()
+            .partition(|word| self.stop_words.contains(word));
+
+        let similar_words: BTreeMap<String, Vec<String>> = words
+            .iter()
+            .map(|word| {
+                (
+                    word.clone(),
+                    find_all_extended_words(&self.all_words, word).unwrap_or(vec![]),
+                )
+            })
+            .collect();
+
+        QueryDiagnostics {
+            words,
+            ignored_words,
+            kept_words,
+            similar_words,
+        }
     }
 }
 
@@ -236,7 +262,7 @@ pub struct QueryParams {
 pub struct QueryDiagnostics {
     pub words: Vec<String>,
     pub ignored_words: Vec<String>,
-    pub keep_words: Vec<String>,
+    pub kept_words: Vec<String>,
     pub similar_words: BTreeMap<String, Vec<String>>,
 }
 

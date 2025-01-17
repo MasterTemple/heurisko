@@ -2,7 +2,6 @@ use std::{fmt::Display, path::Path};
 
 use cached::proc_macro::cached;
 use regex::Regex;
-use rocket::form::validate::Len;
 
 use crate::hsk_file::{HskResult, Word};
 

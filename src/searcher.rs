@@ -239,10 +239,17 @@ impl Searcher {
             })
             .collect();
 
+        let unmatched_words: Vec<String> = words
+            .iter()
+            .filter(|word| !self.all_words.binary_search(word).is_ok())
+            .map(|word| word.to_string())
+            .collect();
+
         QueryDiagnostics {
             words,
             ignored_words,
             kept_words,
+            unmatched_words,
             similar_words,
         }
     }
@@ -263,6 +270,7 @@ pub struct QueryDiagnostics {
     pub words: Vec<String>,
     pub ignored_words: Vec<String>,
     pub kept_words: Vec<String>,
+    pub unmatched_words: Vec<String>,
     pub similar_words: BTreeMap<String, Vec<String>>,
 }
 

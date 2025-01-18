@@ -50,7 +50,7 @@ enum Commands {
     Cli,
 
     /// Host the web server
-    Host,
+    Host { port: Option<u16> },
     // Find,
 
     // Move,
@@ -68,7 +68,7 @@ pub fn parse_cli() -> Result<(), Box<dyn std::error::Error>> {
 
         Commands::Cli => command_cli(),
 
-        Commands::Host => command_host()?,
+        Commands::Host { port } => command_host(port.unwrap_or(8000))?,
     };
 
     Ok(())

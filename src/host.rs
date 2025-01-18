@@ -6,10 +6,11 @@ use rocket::{get, routes};
 
 use crate::app_config::APP_DISPLAY_NAME;
 use crate::hsk_file::HskResult;
+use crate::searcher::QueryDiagnostics;
 use crate::utils::Timer;
 use crate::{CONFIG, SEARCHER};
 
-pub fn command_host() -> HskResult<()> {
+pub fn command_host(port: u16) -> HskResult<()> {
     // Create a new tokio runtime
     let rt = Runtime::new()?;
     // force it to load when starting
@@ -27,7 +28,9 @@ pub fn command_host() -> HskResult<()> {
 
     // Launch rocket in the runtime
     _ = rt.block_on(async {
-        let rocket = rocket::build().mount("/", routes![index, search, ids]);
+        let rocket = rocket::build()
+            .configure(rocket::Config::figment().merge(("port", port)))
+            .mount("/", routes![index, search, ids, diagnostics]);
         rocket
             .launch()
             .await
@@ -72,4 +75,10 @@ async fn search(
         remove_stop_words,
     );
     serde_json::to_string(&page_results).map_err(|err| BadRequest(err.to_string()))
+}
+
+#[get("/diagnostics?<query>")]
+async fn diagnostics(query: String) -> Result<String, BadRequest<String>> {
+    serde_json::to_string(&SEARCHER.diagnose_query(query))
+        .map_err(|err| BadRequest(err.to_string()))
 }

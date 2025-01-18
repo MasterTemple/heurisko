@@ -6,7 +6,6 @@ use rocket::{get, routes};
 
 use crate::app_config::APP_DISPLAY_NAME;
 use crate::hsk_file::HskResult;
-use crate::searcher::QueryDiagnostics;
 use crate::utils::Timer;
 use crate::{CONFIG, SEARCHER};
 
@@ -30,7 +29,7 @@ pub fn command_host(port: u16) -> HskResult<()> {
     _ = rt.block_on(async {
         let rocket = rocket::build()
             .configure(rocket::Config::figment().merge(("port", port)))
-            .mount("/", routes![index, search, ids, diagnostics]);
+            .mount("/", routes![index, search, ids, diagnostics, transcript]);
         rocket
             .launch()
             .await
@@ -80,5 +79,11 @@ async fn search(
 #[get("/diagnostics?<query>")]
 async fn diagnostics(query: String) -> Result<String, BadRequest<String>> {
     serde_json::to_string(&SEARCHER.diagnose_query(query))
+        .map_err(|err| BadRequest(err.to_string()))
+}
+
+#[get("/transcript?<path>")]
+async fn transcript(path: String) -> Result<String, BadRequest<String>> {
+    serde_json::to_string(&SEARCHER.get_transcript_words(path))
         .map_err(|err| BadRequest(err.to_string()))
 }

@@ -239,11 +239,6 @@ impl Searcher {
             })
             .collect();
 
-        // let unmatched_words: Vec<String> = words
-        //     .iter()
-        //     .filter(|word| !self.all_words.binary_search(word).is_ok())
-        //     .map(|word| word.to_string())
-        //     .collect();
         let (kept_words, unmatched_words): (Vec<String>, Vec<String>) = kept_words
             .into_iter()
             .partition(|word| self.all_words.binary_search(word).is_ok());
@@ -255,6 +250,14 @@ impl Searcher {
             unmatched_words,
             similar_words,
         }
+    }
+    pub fn get_transcript_words(&self, transcript_path: String) -> Option<Vec<Word>> {
+        let transcript_id = self
+            .transcript_paths
+            .iter()
+            .position(|path| *path == transcript_path)?;
+        let words = self.transcript_words.get(&transcript_id)?;
+        Some(words.clone())
     }
 }
 

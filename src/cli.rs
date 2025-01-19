@@ -1,10 +1,3 @@
-use std::collections::BTreeMap;
-use std::path::Path;
-use std::sync::Arc;
-use walkdir::WalkDir;
-
-use crate::app_config::{APP_DISPLAY_NAME, APP_EXT};
-use crate::hsk_file::{HskFile, HskResult};
 use crate::searcher::Searcher;
 use crate::utils::{prompt, Timer};
 use crate::CONFIG;

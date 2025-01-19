@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use crate::searcher::Searcher;
 use app_config::AppConfig;
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use cli::command_cli;
 use convert::command_convert;
 use host::command_host;
@@ -32,25 +32,35 @@ struct Cli {
     command: Commands,
 }
 
+/// Convert files or directories
+#[derive(Debug, Args)]
+pub struct CommandConvert {
+    /// Path of files or directories to convert
+    source: String,
+    /// The sub-directory to place the converted files in
+    #[arg(short, long)]
+    destination: Option<String>,
+    /// Whether or not to preserve source folder directory hierarchies
+    #[arg(short, long)]
+    flatten: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct CommandHost {
+    #[arg(short, long)]
+    port: Option<u16>,
+}
+
 #[derive(Debug, Subcommand)]
 enum Commands {
     /// Convert files or directories
-    Convert {
-        /// Path of files or directories to convert
-        source: String,
-        /// The sub-directory to place the converted files in
-        #[arg(short, long)]
-        destination: Option<String>,
-        /// Whether or not to preserve source folder directory hierarchies
-        #[arg(short, long)]
-        flatten: bool,
-    },
+    Convert(CommandConvert),
 
     /// Run the interactive CLI
     Cli,
 
     /// Host the web server
-    Host { port: Option<u16> },
+    Host(CommandHost),
     // Find,
 
     // Move,
@@ -60,15 +70,15 @@ pub fn parse_cli() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Convert {
+        Commands::Convert(CommandConvert {
             source,
             flatten,
             destination,
-        } => command_convert(source, destination, flatten)?,
+        }) => command_convert(source, destination, flatten)?,
 
         Commands::Cli => command_cli(),
 
-        Commands::Host { port } => command_host(port.unwrap_or(8000))?,
+        Commands::Host(CommandHost { port }) => command_host(port.unwrap_or(8000))?,
     };
 
     Ok(())

@@ -72,7 +72,7 @@ def main():
         query = input("Search: ")  # "by this it is evident"
         if query == "exit":
             break
-        url = create_url(query, { "context": "20", "remove_stop_words": "true" })
+        url = create_url(query, { "context": "20", "remove_stop_words": "false" })
         search(url)
 
 if __name__ == "__main__":

@@ -106,10 +106,10 @@ pub fn merge_special(arrays: Vec<Vec<usize>>, allowed_range: usize) -> Vec<WordS
 
     while !heap.is_empty() {
         let mut it = heap.pop().unwrap();
-        // loop {
         let this = &mut it.0;
         let (this_index, word_id) = this.get_pair();
 
+        // ! evaluate what this is doing
         let mut at_least_one_added = false;
         // while i can add to elements of the end of the array, do it!
         for range in sorted.iter_mut().rev() {
@@ -125,12 +125,11 @@ pub fn merge_special(arrays: Vec<Vec<usize>>, allowed_range: usize) -> Vec<WordS
 
         // if the `next element` can't reach the `last element`, but the `next element` could reach `this element`, then i add `this element`
         if let Some(last) = sorted.last() {
-            // dbg!(&last);
             if let Some(next) = heap.peek() {
-                // dbg!(&next);
                 let next_index = next.0.get_item();
                 let next_and_last_cant_reach = !last.can_add(next_index, allowed_range);
                 let this_and_last_can_reach = next_index.abs_diff(this_index) <= allowed_range;
+                // seriously, what is the !at_least_one_added doing here?
                 if (next_and_last_cant_reach && this_and_last_can_reach) || !at_least_one_added {
                     sorted.push(WordSegmentRange::new(this_index, word_id));
                 }
@@ -144,30 +143,14 @@ pub fn merge_special(arrays: Vec<Vec<usize>>, allowed_range: usize) -> Vec<WordS
         else {
             sorted.push(WordSegmentRange::new(this_index, word_id));
         }
-        // if !at_least_one_added {
-        //     sorted.push(WordSegmentRange::new(this_index, word_id));
-        // }
 
-        // let new_range = WordSegmentRange::new(index, allowed_range, it.0.word_id);
-        // sorted.push(it.0.get_item());
+        // advance to next word id for the heap
         this.idx += 1;
-
-        //     if !(this.idx < this.arr.len() - 1) {
-        //         break;
-        //     }
-        //     if !heap
-        //         .peek()
-        //         .is_some_and(|top| this.get_item() < this.get_item())
-        //     {
-        //         break;
-        //     }
-        // }
         // if elements remain, put back in heap
         if it.0.idx < it.0.arr.len() {
             heap.push(it)
         }
     }
 
-    // dbg!(&sorted);
     sorted
 }

@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 
 use rocket::response::status::BadRequest;
 use rocket::tokio::runtime::Runtime;
-use rocket::{get, routes};
+use rocket::{get, post, routes};
+use serde::{Deserialize, Serialize};
 
 use crate::app_config::APP_DISPLAY_NAME;
 use crate::hsk_file::HskResult;
@@ -29,7 +30,10 @@ pub fn command_host(port: u16) -> HskResult<()> {
     _ = rt.block_on(async {
         let rocket = rocket::build()
             .configure(rocket::Config::figment().merge(("port", port)))
-            .mount("/", routes![index, search, ids, diagnostics, transcript]);
+            .mount(
+                "/",
+                routes![index, search, ids, diagnostics, transcript, convert],
+            );
         rocket
             .launch()
             .await
@@ -86,4 +90,19 @@ async fn diagnostics(query: String) -> Result<String, BadRequest<String>> {
 async fn transcript(path: String) -> Result<String, BadRequest<String>> {
     serde_json::to_string(&SEARCHER.get_transcript_words(path))
         .map_err(|err| BadRequest(err.to_string()))
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ConversionParameters {
+    source: String,
+    destination: Option<String>,
+    flatten: bool,
+}
+
+#[post("/convert", data = "<data>")]
+async fn convert(data: String) -> Result<String, BadRequest<String>> {
+    let data: ConversionParameters =
+        serde_json::from_str(&data).map_err(|err| BadRequest(err.to_string()))?;
+    dbg!(&data);
+    Ok(serde_json::to_string_pretty(&data).map_err(|err| BadRequest(err.to_string()))?)
 }

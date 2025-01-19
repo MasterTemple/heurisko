@@ -1,3 +1,5 @@
 /target
 *.zip
 *.txt
+!config/stop_words.txt
+!config/word_endings.txt

@@ -1,0 +1,38 @@
+[paths]
+# All `.hsk` files will be stored/read from this directory
+data = "/home/dgmastertemple/.local/share/heurisko"
+# Words such as "the", "an", and more, that should be removed from the search query when the corresponding parameter (`remove_stop_words.value`) is set to true (`\n` delimited)
+stop_words = "/home/dgmastertemple/.config/heurisko/parameters/stop_words.txt"
+# Word suffixes, such as "tion", "ness" and more, to be removed from the end of input words when providing suggestions for similar words (`\n` delimited)
+# These are treated as Regular Expressions
+word_endings = "/home/dgmastertemple/.config/heurisko/parameters/word_endings.txt"
+
+[parameters]
+# Amount of results to display per paginated result
+page_size.value = 50
+# Whether or not the user can, with their API request, overwrite the default value (above)
+page_size.overwritable = true
+
+# Amount of words to include on both the left and right side of the matched segment as context for the search result
+context_size.value = 20
+# Whether or not the user can, with their API request, overwrite the default value (above)
+context_size.overwritable = true
+
+# Whether or not "stop words" (such as "the", "an", ...) should be removed from the search query
+remove_stop_words.value = true
+# Whether or not the user can, with their API request, overwrite the default value (above)
+remove_stop_words.overwritable = true
+
+# The minimum distance between words for them to be grouped in the same segment
+word_distance.value = 2
+# Whether or not the user can, with their API request, overwrite the default value (above)
+word_distance.overwritable = true
+
+# The minimum distance between words for them to be grouped in the same segment when stop words are removed
+word_distance_with_stop_words_removed.value = 5
+# Whether or not the user can, with their API request, overwrite the default value (above)
+word_distance_with_stop_words_removed.overwritable = true
+
+[host]
+# The port which the server will be hosted at
+port = 8000

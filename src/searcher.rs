@@ -269,6 +269,7 @@ pub struct QueryParams {
     pub keep_words: Vec<String>,
     /// This means that I should merge these array indices together and treat them as the same word
     /// in the search
+    /// - This is basically a selected subset (by the user) of [`QueryDiagnostics::similar_words`]
     pub similar_words: BTreeMap<String, Vec<String>>,
 }
 

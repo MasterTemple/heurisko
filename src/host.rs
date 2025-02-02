@@ -10,6 +10,32 @@ use crate::hsk_file::HskResult;
 use crate::utils::Timer;
 use crate::{CONFIG, SEARCHER};
 
+use rocket::fairing::{Fairing, Info, Kind};
+use rocket::http::Header;
+use rocket::{Request, Response};
+
+pub struct CORS;
+
+#[rocket::async_trait]
+impl Fairing for CORS {
+    fn info(&self) -> Info {
+        Info {
+            name: "Attaching CORS headers to responses",
+            kind: Kind::Response,
+        }
+    }
+
+    async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
+        response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
+        response.set_header(Header::new(
+            "Access-Control-Allow-Methods",
+            "POST, GET, PATCH, OPTIONS",
+        ));
+        response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
+        response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
+    }
+}
+
 pub fn command_host(port: u16) -> HskResult<()> {
     // Create a new tokio runtime
     let rt = Runtime::new()?;
@@ -30,9 +56,18 @@ pub fn command_host(port: u16) -> HskResult<()> {
     _ = rt.block_on(async {
         let rocket = rocket::build()
             .configure(rocket::Config::figment().merge(("port", port)))
+            .attach(CORS)
             .mount(
                 "/",
-                routes![index, search, ids, diagnostics, transcript, convert],
+                routes![
+                    index,
+                    search,
+                    search_exact,
+                    ids,
+                    diagnostics,
+                    transcript,
+                    convert
+                ],
             );
         rocket
             .launch()
@@ -70,13 +105,24 @@ async fn search(
     page: Option<usize>,
     remove_stop_words: bool,
 ) -> Result<String, BadRequest<String>> {
+    let mut timer = Timer::new();
     let page = page.unwrap_or(0);
     let page_results = SEARCHER.search(
-        query,
+        &query,
         context.unwrap_or(CONFIG.context_size()),
         page,
         remove_stop_words,
     );
+    timer.print(format!("Searched {query:?}").as_str());
+    serde_json::to_string(&page_results).map_err(|err| BadRequest(err.to_string()))
+}
+
+#[get("/search_exact?<query>&<page>")]
+async fn search_exact(query: String, page: Option<usize>) -> Result<String, BadRequest<String>> {
+    let mut timer = Timer::new();
+    let page = page.unwrap_or(0);
+    let page_results = SEARCHER.search_exact(&query, page);
+    timer.print(format!("Searched {query:?}").as_str());
     serde_json::to_string(&page_results).map_err(|err| BadRequest(err.to_string()))
 }
 

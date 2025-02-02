@@ -63,6 +63,7 @@ def search(url: str):
     took = end - start
     print(f"In {took*1000:.2f}ms")
     data = res.json()
+    print(data)
     for result in data[:10]:
         words = [colorize(word['word'], "red") if word["matched"] else word['word'] for word in result['words']]
         print(" ".join(words) + "\n")

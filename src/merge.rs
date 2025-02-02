@@ -228,24 +228,24 @@ pub fn merge_ranked(arrays: Vec<Vec<usize>>, allowed_range: usize) -> Vec<WordSe
         }
 
         // if the `next element` can't reach the `last element`, but the `next element` could reach `this element`, then i add `this element`
-        if let Some(last) = sorted.last() {
+        if let Some(last) = sorted.back() {
             if let Some(next) = heap.peek() {
                 let next_index = next.0.get_item();
                 let next_and_last_cant_reach = !last.can_add(next_index, allowed_range);
                 let this_and_last_can_reach = next_index.abs_diff(this_index) <= allowed_range;
                 // seriously, what is the !at_least_one_added doing here?
                 if (next_and_last_cant_reach && this_and_last_can_reach) || !at_least_one_added {
-                    sorted.push(WordSegmentRange::new(this_index, word_id));
+                    sorted.push_back(WordSegmentRange::new(this_index, word_id));
                 }
             } else {
                 if !at_least_one_added {
-                    sorted.push(WordSegmentRange::new(this_index, word_id));
+                    sorted.push_back(WordSegmentRange::new(this_index, word_id));
                 }
             }
         }
         // the base case at the beginning with no last element
         else {
-            sorted.push(WordSegmentRange::new(this_index, word_id));
+            sorted.push_back(WordSegmentRange::new(this_index, word_id));
         }
 
         // advance to next word id for the heap

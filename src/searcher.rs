@@ -103,6 +103,107 @@ impl Searcher {
         transcript_to_indices
     }
 
+    pub fn search_exact(&self, query: impl AsRef<str>, page: usize) -> Option<Vec<QueryResult>> {
+        let words: Vec<_> = query
+            .as_ref()
+            .split_whitespace()
+            .map(|word| normalize_word(word))
+            .filter(|word| word.len() > 0)
+            .collect();
+        let mut iter = words.iter();
+
+        let mut idx = 1;
+        let transcript_starts = {
+            // let findings = words.map(|word| self.map.get(&word));
+            // what i need is a list of valid transcripts, which starts out as all
+            // transcripts that contain the first word
+            // but then shrinks as the next one doesn't contain it
+            let first = self.map.get(iter.next()?)?;
+            let mut valid_transcripts = first
+                .iter()
+                .map(|(transcript_id, _)| *transcript_id)
+                .collect::<Vec<_>>();
+            // transcript to word starts
+            let mut valid_starts = first
+                .into_iter()
+                .map(|(tid, word_indices)| (*tid, word_indices.clone()))
+                .collect::<BTreeMap<_, _>>();
+
+            while let Some(word) = iter.next() {
+                // remove next that aren't part of existing
+                let next = self.map.get(word)?;
+                let next_transcripts: Vec<_> = next
+                    .iter()
+                    .filter(|(tid, _)| valid_transcripts.contains(tid))
+                    .map(|(tid, _)| *tid)
+                    .collect();
+                // remove existing valid that aren't continued
+                valid_transcripts = valid_transcripts
+                    .into_iter()
+                    .filter(|vt| next_transcripts.contains(vt))
+                    .collect();
+
+                // remove valid starts where transcript isn't continued
+                valid_starts = valid_starts
+                    .into_iter()
+                    .filter(|(key, _)| valid_transcripts.contains(key))
+                    // .map(|(key, word_indices)| (key, word_indices.into_iter().filter(|wi| next)))
+                    .collect();
+                for it in next {
+                    let Some(word_indices) = valid_starts.get_mut(&it.0) else {
+                        continue;
+                    };
+                    *word_indices = word_indices
+                        .iter()
+                        .cloned()
+                        .filter(|wi| it.1.contains(*wi + idx))
+                        .collect();
+                }
+                idx += 1;
+            }
+            valid_starts
+        };
+        // dbg!(&transcript_starts);
+        let mut results = vec![];
+        for (transcript, value) in transcript_starts.iter() {
+            for start in value.clone() {
+                let transcript_words = self.transcript_words.get(transcript).expect("It exists");
+                // dbg!(&transcript_words, start, idx);
+                let words = transcript_words[start..start + idx]
+                    .as_ref()
+                    .iter()
+                    .map(|word| QueryWord {
+                        word: word.word.clone(),
+                        start: word.start,
+                        end: word.end,
+                        matched: true,
+                    })
+                    .collect();
+                let unique_count = idx;
+                let element_count = idx;
+                let transcript = self
+                    .transcript_paths
+                    .get(*transcript)
+                    .expect("It exists")
+                    .clone();
+
+                results.push(QueryResult::new(
+                    transcript,
+                    words,
+                    unique_count,
+                    element_count,
+                ));
+            }
+        }
+        Some(results)
+
+        // all results are equal
+        // let mut results: Vec<(TranscriptId, WordSegmentRange)> = Vec::new();
+
+        // for (transcript_id, list_of_word_indices) in transcript_indices {}
+        // todo!()
+    }
+
     pub fn search(
         &self,
         query: impl AsRef<str>,
@@ -291,6 +392,7 @@ pub struct QueryWord {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct QueryResult {
     pub transcript: String,
     pub words: Vec<QueryWord>,

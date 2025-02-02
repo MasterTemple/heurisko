@@ -8,9 +8,9 @@ use super::TranscriptFile;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UnalignedWhisperXFile {
-    pub id: String,
-    pub model: String,
-    pub compute_type: String,
+    // pub id: String,
+    // pub model: String,
+    // pub compute_type: String,
     pub segments: Vec<UnalignedWhisperXSegment>,
 }
 

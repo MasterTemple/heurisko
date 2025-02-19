@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use rocket::form::validate::Len;
 use rocket::response::status::BadRequest;
 use rocket::tokio::runtime::Runtime;
 use rocket::{get, post, routes};
@@ -132,10 +133,33 @@ async fn diagnostics(query: String) -> Result<String, BadRequest<String>> {
         .map_err(|err| BadRequest(err.to_string()))
 }
 
-#[get("/transcript?<path>")]
-async fn transcript(path: String) -> Result<String, BadRequest<String>> {
-    serde_json::to_string(&SEARCHER.get_transcript_words(path))
-        .map_err(|err| BadRequest(err.to_string()))
+#[get("/transcript?<path>&<start>&<end>")]
+async fn transcript(
+    path: String,
+    start: Option<f64>,
+    end: Option<f64>,
+) -> Result<String, BadRequest<String>> {
+    let words = &SEARCHER
+        .get_transcript_words(path)
+        .unwrap_or_else(|| vec![]);
+    let words = {
+        let start_idx: usize = match start {
+            Some(start) => words
+                .iter()
+                .position(|word| word.start.is_some_and(|word_start| word_start >= start))
+                .unwrap_or(words.len()),
+            None => 0,
+        };
+        let end_idx: usize = match end {
+            Some(end) => words
+                .iter()
+                .position(|word| word.end.is_some_and(|word_end| word_end > end))
+                .unwrap_or(words.len()),
+            None => words.len(),
+        };
+        &words[start_idx..end_idx]
+    };
+    serde_json::to_string(words).map_err(|err| BadRequest(err.to_string()))
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
